@@ -1855,31 +1855,49 @@ function upload_image_from_file($file, $alt, $title, $caption, $description) {
         return new WP_Error('invalid_image', 'The provided file is not a valid image.');
     }
 
-    // Step 3: Convert the image to WebP
-    $image_editor = wp_get_image_editor($uploaded_file['file']);
-
-    if (is_wp_error($image_editor)) {
-        @unlink($uploaded_file['file']); // Clean up the temporary file
-        return $image_editor;
-    }
-
-    // Set compression quality
-    $compression_quality = 30; // Adjust this value (1-100) to control compression level
-    $image_editor->set_quality($compression_quality);
-
-    // Generate the WebP filename without the original extension
+    // Step 3: Convert the image to WebP using Imagick if available
     $filename_without_extension = pathinfo($uploaded_file['file'], PATHINFO_FILENAME);
     $webp_filename = $filename_without_extension . '.webp';
-
-    // Save the WebP file in the uploads directory
     $upload_dir = wp_upload_dir();
     $new_webp_path = $upload_dir['path'] . '/' . $webp_filename;
 
-    $converted = $image_editor->save($new_webp_path, 'image/webp');
+    if (class_exists('Imagick')) {
+        try {
+            // Use Imagick for better compression
+            $image = new Imagick($uploaded_file['file']);
+            $image->setImageCompressionQuality(80); // Aggressive compression
+            $image->stripImage(); // Remove EXIF, ICC, etc.
+            $image->setImageFormat('webp');
+            $image->setOption('webp:lossless', 'false');
+            $image->setOption('webp:method', '6'); // Slowest but best compression
+            $image->writeImage($new_webp_path);
+            $image->clear();
+            $image->destroy();
 
-    if (is_wp_error($converted)) {
-        @unlink($uploaded_file['file']); // Clean up the original file
-        return $converted;
+        } catch (Exception $e) {
+            @unlink($uploaded_file['file']);
+            return new WP_Error('imagick_error', 'Image processing failed: ' . $e->getMessage());
+        }
+    } else {
+        echo '<div class="notice notice-warning">';
+        echo '<p><strong>Imagick not found</strong>: For better image compression, install the <code>imagick</code> PHP extension.</p>';
+        echo '</div>';
+        // Fallback to WordPress' default image editor (GD or Imagick)
+        $image_editor = wp_get_image_editor($uploaded_file['file']);
+
+        if (is_wp_error($image_editor)) {
+            @unlink($uploaded_file['file']); // Clean up the temporary file
+            return $image_editor;
+        }
+
+        $image_editor->set_quality(80); // Basic compression
+
+        $converted = $image_editor->save($new_webp_path, 'image/webp');
+
+        if (is_wp_error($converted)) {
+            @unlink($uploaded_file['file']); // Clean up the original file
+            return $converted;
+        }
     }
 
     // Step 4: Save the WebP image as a WordPress attachment
