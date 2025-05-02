@@ -522,11 +522,11 @@
         } else if (node.tagName.toLowerCase() === 'p') {
             // Paragraph block
             block = (wp.blocks.createBlock('core/paragraph', {
-                content:  cleanContent(node.textContent.trim())
+                content:  cleanContent(node.innerHTML.trim())
             }));
         } else if (node.tagName.toLowerCase() === 'ul' || node.tagName.toLowerCase() === 'ol') {
             // List block
-            const items = Array.from(node.querySelectorAll('li')).map(li => li.textContent.trim());
+            const items = Array.from(node.querySelectorAll('li')).map(li => li.innerHTML.trim());
             block = (wp.blocks.createBlock('core/list', {
                 values: items.map(item => `<li>${cleanContent(item)}</li>`).join(''),
                 ordered: node.tagName.toLowerCase() === 'ol'
@@ -535,7 +535,7 @@
             const rows = Array.from(node.querySelectorAll('tr')).map(row => {
                 const cells = Array.from(row.children).map(cell => {
                     const tag = cell.tagName.toLowerCase();
-                    const content = cell.textContent.trim();
+                    const content = cell.innerHTML.trim();
                     return `<${tag}>${content}</${tag}>`;
                 }).join('');
                 return `<tr>${cells}</tr>`;
@@ -563,21 +563,6 @@
         }
         return block
     };
-    function test() {
-        const text = "[{\"title\": \"What is the trick to baking with almond flour?\" , \"content\": \"Baking with <strong>almond flour</strong> requires a few adjustments compared to regular wheat flour. Because <strong>almond flour</strong> doesn't contain gluten, it's best to combine it with a binder like eggs to provide structure. Also, avoid overmixing the batter to keep the muffins tender, not dense. Additionally, due to its higher fat content, baked goods made with <strong>almond flour</strong> tend to brown faster, so keep a close eye on them in the oven.\", \"visible\": \"true\"}, {\"title\": \"Why are my almond flour muffins soggy?\" , \"content\": \"<strong>Almond flour muffins</strong> can become soggy if there's too much moisture in the batter or if they're not baked long enough. Ensure you measure wet ingredients accurately, and consider adding a tablespoon or two of <strong>almond flour</strong> if the batter seems too wet. Additionally, let the muffins cool completely on a wire rack after baking, as this helps release excess moisture.\", \"visible\": \"true\"}, {\"title\": \"What happens when you replace all-purpose flour with almond flour?\" , \"content\": \"When you replace all-purpose flour with <strong>almond flour</strong>, the baked goods become gluten-free with a slightly nutty flavor and a more tender crumb. However, since <strong>almond flour</strong> doesn't have gluten, it can result in a denser texture. You might also need to use more eggs or another binder to provide structure. Overall, the result is a healthier alternative with a unique taste and texture profile.\", \"visible\": \"true\"}, {\"title\": \"Can you replace flour with almond flour in muffins?\" , \"content\": \"Yes, you can replace regular flour with <strong>almond flour</strong> in muffins, but it’s not always a 1:1 substitution. Generally, you can substitute <strong>almond flour</strong> for up to 25% of the all-purpose flour without making significant changes. For larger substitutions, you may need to adjust the amount of liquid or add an extra egg to improve the binding. Also, keep in mind that <strong>almond flour</strong> can absorb more liquid than wheat flour, so watch the batter consistency.\", \"visible\": \"true\"}]"
-        const faqs = JSON.parse(cleanContent(text));
- 
-                 const faqData = faqs.map(faqItem => ({
-                     title: cleanContent(faqItem['title']),
-                     content: cleanContent(faqItem['content']),
-                     visible:'true'
-                 }));
-                 // Create the FAQ block with the extracted data
-                 block = wp.blocks.createBlock('rank-math/faq-block', {
-                     questions: faqData
-                 });
-                 console.log(cleanContent(text))
-    }
     async function updateRankMathMeta(title, description, focusKeyword, slug) {
         try {
             wp.data.dispatch('rank-math').updateDescription(description)
