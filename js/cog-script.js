@@ -560,9 +560,14 @@
                  });
             }
             
-        } else if(node.tagName.toLowerCase() === 'b') {
+        } else if(node.tagName.toLowerCase() === 'b' || node.tagName.toLowerCase() === 'strong' ) {
             block = (wp.blocks.createBlock('core/paragraph', {
-                content:  cleanContent(node.trim()) 
+                content:  `<strong>`+cleanContent(node.textContent.trim()) +`</strong>` 
+            }));
+        }
+        else if(node.tagName.toLowerCase() === 'em' || node.tagName.toLowerCase() === 'i' ) {
+            block = (wp.blocks.createBlock('core/paragraph', {
+                content:  `<em>`+cleanContent(node.textContent.trim()) +`</em>` 
             }));
         }
         return block
