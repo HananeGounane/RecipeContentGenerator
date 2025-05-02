@@ -560,6 +560,10 @@
                  });
             }
             
+        } else if(node.tagName.toLowerCase() === 'b') {
+            block = (wp.blocks.createBlock('core/paragraph', {
+                content:  cleanContent(node.trim()) 
+            }));
         }
         return block
     };
@@ -599,7 +603,7 @@
                     let lines = response.data.outline.split('\n');
                     let blocks = [];
                     // Dispatch the editPost action to update the title
-                    wp.data.dispatch('core/editor').editPost({ title: response.data.title.trim(), excerpt: response.data.meta.trim() });
+                    wp.data.dispatch('core/editor').editPost({ title: response.data.title.trim()});
                     for (let index = 0; index < lines.length; index++) {
                         const line = lines[index].trim();
                         if (line != "") {
