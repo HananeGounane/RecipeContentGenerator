@@ -1865,7 +1865,7 @@ function upload_image_from_file($file, $alt, $title, $caption, $description) {
         try {
             // Use Imagick for better compression
             $image = new Imagick($uploaded_file['file']);
-            $image->setImageCompressionQuality(80); // Aggressive compression
+            $image->setImageCompressionQuality(70); // Aggressive compression
             $image->stripImage(); // Remove EXIF, ICC, etc.
             $image->setImageFormat('webp');
             $image->setOption('webp:lossless', 'false');
@@ -1890,7 +1890,7 @@ function upload_image_from_file($file, $alt, $title, $caption, $description) {
             return $image_editor;
         }
 
-        $image_editor->set_quality(80); // Basic compression
+        $image_editor->set_quality(70); // Basic compression
 
         $converted = $image_editor->save($new_webp_path, 'image/webp');
 
