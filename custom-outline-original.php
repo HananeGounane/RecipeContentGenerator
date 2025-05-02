@@ -1827,57 +1827,98 @@ function cog_fetch_internal_links() {
 }
 
 add_action('wp_ajax_fetch_internal_links', 'cog_fetch_internal_links');
-function upload_image_from_file($file, $alt_text = '', $title = '', $caption = '', $description = '') {
-    if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
-        return new WP_Error('upload_error', 'No file uploaded or file upload error.');
+
+/**
+ * Uploads an image from a file, converts it to WebP, and saves it to the media library.
+ *
+ * @param array $file The uploaded file data.
+ * @param string $alt The alt text for the image.
+ * @param string $title The title of the image.
+ * @param string $caption The caption for the image.
+ * @param string $description The description of the image.
+ * @return array|WP_Error Array containing attachment ID and URL, or WP_Error on failure.
+ */
+function upload_image_from_file($file, $alt, $title, $caption, $description) {
+    // Step 1: Handle the uploaded file
+    $uploaded_file = wp_handle_upload($file, ['test_form' => false]);
+
+    if (isset($uploaded_file['error'])) {
+        return new WP_Error('upload_error', $uploaded_file['error']);
     }
 
-    require_once(ABSPATH . 'wp-admin/includes/file.php');
-    require_once(ABSPATH . 'wp-admin/includes/image.php');
-    require_once(ABSPATH . 'wp-admin/includes/media.php');
+    // Step 2: Get the file type and check if it's an image
+    $file_info = wp_check_filetype(basename($uploaded_file['file']));
+    $mime_type = $file_info['type'];
 
+    if (strpos($mime_type, 'image') === false) {
+        @unlink($uploaded_file['file']); // Clean up the temporary file
+        return new WP_Error('invalid_image', 'The provided file is not a valid image.');
+    }
+
+    // Step 3: Convert the image to WebP
+    $image_editor = wp_get_image_editor($uploaded_file['file']);
+
+    if (is_wp_error($image_editor)) {
+        @unlink($uploaded_file['file']); // Clean up the temporary file
+        return $image_editor;
+    }
+
+    // Set compression quality
+    $compression_quality = 30; // Adjust this value (1-100) to control compression level
+    $image_editor->set_quality($compression_quality);
+
+    // Generate the WebP filename without the original extension
+    $filename_without_extension = pathinfo($uploaded_file['file'], PATHINFO_FILENAME);
+    $webp_filename = $filename_without_extension . '.webp';
+
+    // Save the WebP file in the uploads directory
     $upload_dir = wp_upload_dir();
-    $file_name = sanitize_file_name($file['name']); // Ensure unique filenames
-    $file_path = $upload_dir['path'] . '/' . $file_name;
+    $new_webp_path = $upload_dir['path'] . '/' . $webp_filename;
 
-    // Move the uploaded file to the WordPress uploads directory
-    if (!move_uploaded_file($file['tmp_name'], $file_path)) {
-        return new WP_Error('move_failed', 'Failed to move uploaded file.');
+    $converted = $image_editor->save($new_webp_path, 'image/webp');
+
+    if (is_wp_error($converted)) {
+        @unlink($uploaded_file['file']); // Clean up the original file
+        return $converted;
     }
 
-    $filetype = wp_check_filetype($file_name, null);
-    if (!$filetype['type']) {
-        return new WP_Error('invalid_type', 'Invalid file type.');
-    }
-
-    // Prepare attachment data
-    $attachment_data = array(
-        'guid'           => $upload_dir['url'] . '/' . $file_name,
-        'post_mime_type' => $filetype['type'],
-        'post_title'     => !empty($title) ? sanitize_text_field($title) : sanitize_file_name(pathinfo($file_name, PATHINFO_FILENAME)),
-        'post_content'   => sanitize_textarea_field($description),
-        'post_excerpt'   => sanitize_textarea_field($caption),
+    // Step 4: Save the WebP image as a WordPress attachment
+    $attachment = array(
+        'guid'           => $upload_dir['url'] . '/' . $webp_filename,
+        'post_mime_type' => 'image/webp',
+        'post_title'     => $title,
+        'post_content'   => $description,
+        'post_excerpt'   => $caption,
         'post_status'    => 'inherit'
     );
 
-    // Insert attachment into media library
-    $attach_id = wp_insert_attachment($attachment_data, $file_path);
-    if (is_wp_error($attach_id)) {
-        return $attach_id;
+    $attachment_id = wp_insert_attachment($attachment, $new_webp_path);
+
+    if (is_wp_error($attachment_id)) {
+        @unlink($new_webp_path); // Clean up the WebP file
+        return $attachment_id;
     }
 
-    // Generate attachment metadata
-    $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
-    wp_update_attachment_metadata($attach_id, $attach_data);
+    // Step 5: Generate attachment metadata
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    $attach_data = wp_generate_attachment_metadata($attachment_id, $new_webp_path);
+    wp_update_attachment_metadata($attachment_id, $attach_data);
 
-    // Set the alt text
-    if (!empty($alt_text)) {
-        update_post_meta($attach_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
-    }
+    // Step 6: Update alt text
+    update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt);
 
-    return array('attachment_id' => $attach_id, 'attachment_url' => wp_get_attachment_url($attach_id));
+    // Clean up temporary files
+    @unlink($uploaded_file['file']);
+
+    // Get the file size of the WebP image
+    $size = filesize($new_webp_path);
+
+    return [
+        'attachment_id' => $attachment_id,
+        'attachment_url' => $attachment['guid'],
+        'size' => $size
+    ];
 }
-
 function cog_upload_image_from_file() {
     // Check if a file is uploaded
     if (!isset($_FILES['file'])) {
@@ -1905,7 +1946,8 @@ function cog_upload_image_from_file() {
     } else {
         wp_send_json_success([
             'attachment_id' => $attachment['attachment_id'], 
-            'attachment_url' => $attachment['attachment_url']
+            'attachment_url' => $attachment['attachment_url'],
+            'size' => $attachment['size'],
         ]);
     }
 }
